@@ -25,6 +25,8 @@ export OUTPUT="~/git/stirring_beh_analysis/data"
 Author: Maciej Szul, 2018
 """
 
+pd.set_option("mode.chained_assignment", None)
+
 # command line interface
 des = "prep script command line"
 parser = argparse.ArgumentParser(description=des)
@@ -97,6 +99,24 @@ def to_polar(x, y):
     return [angle, radius]
 
 
+def nan_cleaner(arr):
+    """
+    clears nan values and interpolates the missing value
+    """
+    mask = np.isnan(arr)
+    arr[mask] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), arr[~mask])
+    return arr
+
+
+def calculate_degs(angle, radius):
+    degs = np.diff(angle)
+    degs = np.insert(degs, 0, 0)
+    degs[np.abs(degs) > 300] = np.nan
+    degs = nan_cleaner(degs)
+    degs = degs * radius
+    return degs
+
+
 print(steps)
 
 if 0 in steps:
@@ -135,4 +155,21 @@ if 1 in steps:
     
     x = resamp_interp(t, x, time)
     y = resamp_interp(t, y, time)
+    
+    angle, radius = to_polar(x,y)
+
+    degs = calculate_degs(angle, radius)
+
+    cols = [
+        'change_start', 'change_stop', 'clockwise', 'conditions', 'cue_onset',
+        'iti', 'run', 'run_start', 'session', 'stim_onset', 'subject', 'trial',
+        'trial_end'
+    ]
+
+    trial_data = trial_data[cols]
+    for i in["x", "y", "angle", "degs"]:
+        trial_data[i] = None
+        trial_data[i] = trial_data[i].astype(object)
+        trial_data[i].loc[0] = eval(i)
+
 

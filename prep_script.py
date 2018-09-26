@@ -163,83 +163,89 @@ if 0 in steps:
     pp_paths = files.get_folders_files(input_path, wp=True)[0]
     pp_paths.sort()
     pp_path = pp_paths[pp_ix]
+    print(pp_path)
     pp_name = pp_path[-3:]
     glob_path = op.join(pp_path, "**", "*.csv")
     all_csvs = [i for i in glob.iglob(glob_path, recursive=True)]
-    f_ses = {i: items_cont_str(all_csvs, i, sort=True) for i in f_types}
-    files_all = dict()
-    for tp in f_types:
-       files_all[tp] = {d: items_cont_str(f_ses[tp], d, sort=True) for d in d_types}
+    files_all = {i: items_cont_str(all_csvs, i, sort=True) for i in d_types}
 
+if 2 in steps:
+    print(len(files_all["joystick_"]), len(files_all["trial_"]), len(files_all["buffer_"]))
+    for i in files_all["joystick_"]:
+        print(i)
+        pd.read_csv(i)
 
 if 1 in steps:
     pp_trials = list()
-
-    for exp_type in files_all.keys():
-        files_len = len(files_all[exp_type]["joystick_"])
-        for trial in range(files_len):
-            trial_csv = files_all[exp_type]["trial_"][trial]
-            buffer_csv = files_all[exp_type]["buffer_"][trial]
-            joystick_csv = files_all[exp_type]["joystick_"][trial]
+    files_len = len(files_all["joystick_"])
+    for trial in range(files_len):
+        try:
+            trial_csv = files_all["trial_"][trial]
+            buffer_csv = files_all["buffer_"][trial]
+            joystick_csv = files_all["joystick_"][trial]
             trial_data = pd.read_csv(trial_csv, index_col=False)
             buffer_data = pd.read_csv(buffer_csv, index_col=False)
             joystick_data = pd.read_csv(joystick_csv, index_col=False)
-            
-            joystick = pd.concat([buffer_data, joystick_data], axis=0, ignore_index=True)
-            joystick = joystick[["t", "x", "y"]]
-            joystick.sort_values(by=["t"], inplace=True,)
-            joystick.reset_index(level=0, drop=True, inplace=True)
+        except Exception as e:
+            print(trial_csv, buffer_csv, joystick_csv)
+        
+        joystick = pd.concat([buffer_data, joystick_data], axis=0, ignore_index=True, sort=True)
+        joystick = joystick[["t", "x", "y"]]
+        joystick.sort_values(by=["t"], inplace=True,)
+        joystick.reset_index(level=0, drop=True, inplace=True)
 
-            t = np.array(joystick.t) - trial_data.stim_onset.values[0]
-            x = np.array(joystick.x)
-            y = np.array(joystick.y)
+        t = np.array(joystick.t) - trial_data.stim_onset.values[0]
+        x = np.array(joystick.x)
+        y = np.array(joystick.y)
 
-            del joystick, buffer_data, joystick_data
-            
-            x = resamp_interp(t, x, time)
-            y = resamp_interp(t, y, time)
-            
-            angle, radius = to_polar(x,y)
+        del joystick, buffer_data, joystick_data
+        
+        x = resamp_interp(t, x, time)
+        y = resamp_interp(t, y, time)
+        
+        angle, radius = to_polar(x,y)
 
-            degs = calculate_degs(angle, radius)
+        degs = calculate_degs(angle, radius)
 
-            degs = nd.gaussian_filter1d(degs, sigma=1.5)
+        degs = nd.gaussian_filter1d(degs, sigma=1.5)
 
-            cols = [
-                'clockwise', 'conditions', 'run', 'session', 'subject', 'trial'
-            ]
+        cols = [
+            'clockwise', 'conditions', 'run', 'session', 'subject', 'trial'
+        ]
 
-            engage_ix = np.argmax(radius[:blink_ix[1]] >= 0.2)
+        engage_ix = np.argmax(radius[:blink_ix[1]] >= 0.2)
 
-            change_ix = change_dir(degs)
+        change_ix = change_dir(degs)
 
-            signs = np.sign(degs)
+        signs = np.sign(degs)
 
-            time_phase1, time_phase2 = acc_both_phases(signs, trial_data.clockwise.values[0], trial_data.conditions.values[0])
-            
-            del signs
+        time_phase1, time_phase2 = acc_both_phases(signs, trial_data.clockwise.values[0], trial_data.conditions.values[0])
+        
+        del signs
 
-            p_split = trial_csv.split(sep="/")
+        p_split = trial_csv.split(sep="/")
 
-            filename = p_split[-1]
+        filename = p_split[-1]
 
-            trial_data = trial_data[cols]
+        exp_type = trial_csv.split(sep="/")[-1][36:-21]
 
-            for i in["engage_ix", "change_ix", "time_phase1", "time_phase2", "filename", "exp_type"]:
-                trial_data[i] = None
-                trial_data[i].loc[0] = eval(i)
+        trial_data = trial_data[cols]
 
-            for i in["x", "y", "angle", "degs"]:
-                trial_data[i] = None
-                trial_data[i] = trial_data[i].astype(object)
-                trial_data[i].loc[0] = eval(i)
+        for i in["engage_ix", "change_ix", "time_phase1", "time_phase2", "filename", "exp_type"]:
+            trial_data[i] = None
+            trial_data[i].loc[0] = eval(i)
 
-            pp_trials.append(trial_data)
+        for i in["x", "y", "angle", "degs"]:
+            trial_data[i] = None
+            trial_data[i] = trial_data[i].astype(object)
+            trial_data[i].loc[0] = eval(i)
+
+        pp_trials.append(trial_data)
             
     path = ["/"] + p_split[1:-2] + ["{0}_all_data.pkl".format(p_split[-3])]
     path = op.join(*path)
 
-    pp_trials = pd.concat(pp_trials, axis=0, ignore_index=True)
+    pp_trials = pd.concat(pp_trials, axis=0, ignore_index=True, sort=False)
 
     pp_trials.to_pickle(path)
 
@@ -251,7 +257,7 @@ if 1 in steps:
         "engage_ix", "change_ix", "time_phase1", "time_phase2", "filename", 
         "exp_type"
     ]
-    pp_trials[selection].to_csv(path, index_label=False)
+    pp_trials[selection].to_csv(path, index=False, index_label=False)
 
     print("END")
 

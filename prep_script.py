@@ -231,7 +231,11 @@ if 1 in steps:
 
         trial_data = trial_data[cols]
 
-        for i in["engage_ix", "change_ix", "time_phase1", "time_phase2", "filename", "exp_type"]:
+        for i in range(4):
+            if trial_data.conditions.values[0] in bin_cond[i][0]:
+                binned_cond = i
+
+        for i in["engage_ix", "change_ix", "time_phase1", "time_phase2", "filename", "exp_type", "binned_cond"]:
             trial_data[i] = None
             trial_data[i].loc[0] = eval(i)
 
@@ -255,7 +259,7 @@ if 1 in steps:
     selection = [
         'clockwise', 'conditions', 'run', 'session', 'subject', 'trial', 
         "engage_ix", "change_ix", "time_phase1", "time_phase2", "filename", 
-        "exp_type"
+        "exp_type", "binned_cond"
     ]
     pp_trials[selection].to_csv(path, index=False, index_label=False)
 
